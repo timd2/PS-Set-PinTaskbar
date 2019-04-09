@@ -44,7 +44,8 @@ Function Set-PinTaskbar {
     $Reg.Path4 = Join-Path $Reg.Path3 $Reg.Key3
 
     If (!(Test-Path -LiteralPath $Reg.Path2)) {
-        New-Item -ItemType Directory -Path $Reg.Path1 -Name [System.Management.Automation.WildcardPattern]::Escape($Reg.Key1) 2>$null | Out-Null
+        # New-Item -ItemType Directory -Path $Reg.Path1 -Name [System.Management.Automation.WildcardPattern]::Escape("*") 2>$null | Out-Null
+        New-Item -ItemType Directory -Path $Reg.Path1 -Name $Reg.Key1 2>$null | Out-Null
     }
     If (!(Test-Path -LiteralPath $Reg.Path3)) {
         New-Item -ItemType Directory -Path ([System.Management.Automation.WildcardPattern]::Escape($Reg.Path2)) -Name $Reg.Key2 2>$null | Out-Null
@@ -96,7 +97,7 @@ Function Set-PinTaskbar {
     }
 
     $Split = $CurrentPinsResults -split ($env:SystemDrive)
-    
+
     $SplitOutput = @()
     # Process each path entry, remove invalid characters, test to determine if the path is valid
     ForEach ($Entry in $Split) {
