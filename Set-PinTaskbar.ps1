@@ -48,12 +48,12 @@ Function Set-PinTaskbar {
         New-Item -ItemType Directory -Path $Reg.Path1 -Name $Reg.Key1 2>$null | Out-Null
     }
     If (!(Test-Path -LiteralPath $Reg.Path3)) {
-        New-Item -ItemType Directory -Path ([System.Management.Automation.WildcardPattern]::Escape($Reg.Path2)) -Name $Reg.Key2 2>$null | Out-Null
+        New-Item -ItemType Directory -Path ([System.Management.Automation.WildcardPattern]::Escape($Reg.Path2)) -Name $Reg.Key2 2>&1 | Out-Null
     }
     If (!(Test-Path -LiteralPath $Reg.Path4)) {
-        New-Item -ItemType Directory -Path ([System.Management.Automation.WildcardPattern]::Escape($Reg.Path3)) -Name $Reg.Key3  2>$null | Out-Null
+        New-Item -ItemType Directory -Path ([System.Management.Automation.WildcardPattern]::Escape($Reg.Path3)) -Name $Reg.Key3  2>&1 | Out-Null
     }
-    Set-ItemProperty -Path ([System.Management.Automation.WildcardPattern]::Escape($Reg.Path4)) -Name $Reg.Value -Value $Reg.Data  2>$null | Out-Null
+    Set-ItemProperty -Path ([System.Management.Automation.WildcardPattern]::Escape($Reg.Path4)) -Name $Reg.Value -Value $Reg.Data  2>&1 | Out-Null
 
     $Shell = New-Object -ComObject "Shell.Application"
     $Folder = $Shell.Namespace((Get-Item $Target).DirectoryName)
@@ -151,6 +151,6 @@ Function Set-PinTaskbar {
     
     # Remove the registry key and subkeys required to pin the application
     If (Test-Path $Reg.Path3) {
-        Remove-Item -LiteralPath $Reg.Path3 -Recurse
+        Remove-Item -LiteralPath $Reg.Path3 -Recurse 2>&1 | Out-Null
     }
 }
