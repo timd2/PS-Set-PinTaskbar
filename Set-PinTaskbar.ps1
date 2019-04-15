@@ -9,6 +9,9 @@ Function Set-PinTaskbar {
         HelpMessage="Target item to unpin",
         ParameterSetName="Unpin")]
         [string] $Unpin
+        ,
+        [Parameter(Mandatory=$False)]
+        [switch] $Confirm
     )
     
     # Determine if the path specified to the pin or unpin application is valid
@@ -58,95 +61,102 @@ Function Set-PinTaskbar {
     $Folder = $Shell.Namespace((Get-Item $Target).DirectoryName)
     $Item = $Folder.ParseName((Get-Item $Target).Name)
 
-    # Registry key where the pinned items are located
-    $RegistryKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Taskband"
-    # Binary registry value where the pinned items are located
-    $RegistryValue = "FavoritesResolve"
-    # Gets the contents into an ASCII format
-    $CurrentPinsProperty = ([system.text.encoding]::ASCII.GetString((Get-ItemProperty -Path $RegistryKey -Name $RegistryValue | Select-Object -ExpandProperty $RegistryValue)))
-    # Filters the results for only the characters that we are looking for, so that the search will function
-    [string]$CurrentPinsResults = $CurrentPinsProperty -Replace '[^\x20-\x2f^\x30-\x3a\x41-\x5c\x61-\x7F]+', ''
 
-    # Globally Unique Identifiers for common system folders, to replace in the pin results
-    $Guid = @{}
-    $Guid.FOLDERID_ProgramFilesX86 = @{
-        "ID" = "{7C5A40EF-A0FB-4BFC-874A-C0F2E0B9FA8E}"
-        "Path" = ${env:ProgramFiles(x86)}
-    }
-    $Guid.FOLDERID_ProgramFilesX64 = @{
-        "ID" = "{6D809377-6AF0-444b-8957-A3773F02200E}"
-        "Path" = $env:ProgramFiles
-    }
-    $Guid.FOLDERID_ProgramFiles = @{
-        "ID" = "{905e63b6-c1bf-494e-b29c-65b732d3d21a}"
-        "Path" = $env:ProgramFiles
-    }
-    $Guid.FOLDERID_System = @{
-        "ID" = "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}"
-        "Path" = Join-Path $env:WINDIR "System32"
-    }
-    $Guid.FOLDERID_Windows = @{
-        "ID" = "{F38BF404-1D43-42F2-9305-67DE0B28FC23}"
-        "Path" = $env:WINDIR
-    }
+    # Separated into a separate function, for the optional confirm switch
+    Function Get-PinnedItems {
+        # Registry key where the pinned items are located
+        $RegistryKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Taskband"
+        # Binary registry value where the pinned items are located
+        $RegistryValue = "FavoritesResolve"
+        # Gets the contents into an ASCII format
+        $CurrentPinsProperty = ([system.text.encoding]::ASCII.GetString((Get-ItemProperty -Path $RegistryKey -Name $RegistryValue | Select-Object -ExpandProperty $RegistryValue)))
+        # Filters the results for only the characters that we are looking for, so that the search will function
+        [string]$CurrentPinsResults = $CurrentPinsProperty -Replace '[^\x20-\x2f^\x30-\x3a\x41-\x5c\x61-\x7F]+', ''
 
-    # Replace GUIDs with full paths to the folders
-    ForEach ($GuidEntry in $Guid.Keys) {
-        $CurrentPinsResults = $CurrentPinsResults -replace $Guid.$GuidEntry.ID,$Guid.$GuidEntry.Path
-    }
+        # Globally Unique Identifiers for common system folders, to replace in the pin results
+        $Guid = @{}
+        $Guid.FOLDERID_ProgramFilesX86 = @{
+            "ID" = "{7C5A40EF-A0FB-4BFC-874A-C0F2E0B9FA8E}"
+            "Path" = ${env:ProgramFiles(x86)}
+        }
+        $Guid.FOLDERID_ProgramFilesX64 = @{
+            "ID" = "{6D809377-6AF0-444b-8957-A3773F02200E}"
+            "Path" = $env:ProgramFiles
+        }
+        $Guid.FOLDERID_ProgramFiles = @{
+            "ID" = "{905e63b6-c1bf-494e-b29c-65b732d3d21a}"
+            "Path" = $env:ProgramFiles
+        }
+        $Guid.FOLDERID_System = @{
+            "ID" = "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}"
+            "Path" = Join-Path $env:WINDIR "System32"
+        }
+        $Guid.FOLDERID_Windows = @{
+            "ID" = "{F38BF404-1D43-42F2-9305-67DE0B28FC23}"
+            "Path" = $env:WINDIR
+        }
 
-    $Split = $CurrentPinsResults -split ($env:SystemDrive)
+        # Replace GUIDs with full paths to the folders
+        ForEach ($GuidEntry in $Guid.Keys) {
+            $CurrentPinsResults = $CurrentPinsResults -replace $Guid.$GuidEntry.ID,$Guid.$GuidEntry.Path
+        }
 
-    $SplitOutput = @()
-    # Process each path entry, remove invalid characters, test to determine if the path is valid
-    ForEach ($Entry in $Split) {
-        If ($Entry.Substring(0,1) -eq '\') {
-            # Get a list of invalid path characters
-            $InvalidPathCharsRegEx = [IO.Path]::GetInvalidPathChars() -join ''
-            $InvalidPathChars = "[{0}]" -f [RegEx]::Escape($InvalidPathCharsRegEx)
-            $EntryProcessedPhase1 = "C:" + ($Entry -replace $InvalidPathChars)
-            $EntryProcessedPhase2 = $null
-            # Remove characters from the path until it is resolvable
-            ForEach ($Position in $EntryProcessedPhase1.Length .. 1) {
-                $ErrorActionPreference = "SilentlyContinue"
-                If (Test-Path $EntryProcessedPhase1.Substring(0,$Position)) {
-                    $EntryProcessedPhase2 = $EntryProcessedPhase1.Substring(0,$Position)
-                    Break
+        $Split = $CurrentPinsResults -split ($env:SystemDrive)
+
+        $SplitOutput = @()
+        # Process each path entry, remove invalid characters, test to determine if the path is valid
+        ForEach ($Entry in $Split) {
+            If ($Entry.Substring(0,1) -eq '\') {
+                # Get a list of invalid path characters
+                $InvalidPathCharsRegEx = [IO.Path]::GetInvalidPathChars() -join ''
+                $InvalidPathChars = "[{0}]" -f [RegEx]::Escape($InvalidPathCharsRegEx)
+                $EntryProcessedPhase1 = "C:" + ($Entry -replace $InvalidPathChars)
+                $EntryProcessedPhase2 = $null
+                # Remove characters from the path until it is resolvable
+                ForEach ($Position in $EntryProcessedPhase1.Length .. 1) {
+                    $ErrorActionPreference = "SilentlyContinue"
+                    If (Test-Path $EntryProcessedPhase1.Substring(0,$Position)) {
+                        $EntryProcessedPhase2 = $EntryProcessedPhase1.Substring(0,$Position)
+                        Break
+                    }
+                    $ErrorActionPreference = "Continue"
                 }
-                $ErrorActionPreference = "Continue"
-            }
-            # If the path resolves, add it to the array of paths
-            If ($EntryProcessedPhase2) {
-                $SplitOutput += $EntryProcessedPhase2
+                # If the path resolves, add it to the array of paths
+                If ($EntryProcessedPhase2) {
+                    $SplitOutput += $EntryProcessedPhase2
+                }
             }
         }
+
+        $PinnedItems = @()
+        $Shell = New-Object -ComObject WScript.Shell
+        ForEach ($Path in $SplitOutput) {
+            # Determines if the entry in the registry is a link in the standard folder, if it is, resolve the path of the shortcut and add it to the array of pinnned items
+            If ((Split-Path $Path) -eq (Join-Path $env:USERPROFILE "AppData\Roaming\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar")) {
+                $PinnedItems += $Shell.CreateShortcut($Path).TargetPath
+            }
+            Else {
+                # If the link or executable is not in the taskbar folder, add it directly
+                $PinnedItems += $Path
+            }
+        }
+
+        $PinnedItems = $PinnedItems | Sort-Object -Unique
+        Return $PinnedItems    
     }
 
-    $PinnedItems = @()
-    $Shell = New-Object -ComObject WScript.Shell
-    ForEach ($Path in $SplitOutput) {
-        # Determines if the entry in the registry is a link in the standard folder, if it is, resolve the path of the shortcut and add it to the array of pinnned items
-        If ((Split-Path $Path) -eq (Join-Path $env:USERPROFILE "AppData\Roaming\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar")) {
-            $PinnedItems += $Shell.CreateShortcut($Path).TargetPath
-        }
-        Else {
-            # If the link or executable is not in the taskbar folder, add it directly
-            $PinnedItems += $Path
-        }
-    }
+    $PinnedItemsResults = Get-PinnedItems
 
-    $PinnedItems = $PinnedItems | Sort-Object -Unique
-    
     # Unpin if the application is pinned
     If (!($PinFlag)) {
-        If ($PinnedItems -contains $Target) {
+        If ($PinnedItemsResults -contains $Target) {
             $Item.InvokeVerb("{:}")
             Write-Host "Unpinning application $Target"
         }
     }
     Else {
         # Only pin the application if it hasn't been pinned
-        If ($PinnedItems -notcontains $Target) {
+        If ($PinnedItemsResults -notcontains $Target) {
             $Item.InvokeVerb("{:}")
             Write-Host "Pinning application $Target"
         }
@@ -155,5 +165,16 @@ Function Set-PinTaskbar {
     # Remove the registry key and subkeys required to pin the application
     If (Test-Path $Reg.Path3) {
         Remove-Item -LiteralPath $Reg.Path3 -Recurse 2>&1 | Out-Null
+    }
+
+    # If confirm flag is present, confirm that the item is pinned and return true / false
+    If ($Confirm.IsPresent) {
+        $PinnedItemsResults = Get-PinnedItems
+        If ($PinnedItemsResults -contains $Target) {
+            Return $True
+        }
+        Else {
+            Return $False
+        }
     }
 }
