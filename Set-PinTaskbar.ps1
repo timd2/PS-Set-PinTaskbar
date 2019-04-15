@@ -44,7 +44,6 @@ Function Set-PinTaskbar {
     $Reg.Path4 = Join-Path $Reg.Path3 $Reg.Key3
 
     If (!(Test-Path -LiteralPath $Reg.Path2)) {
-        # New-Item -ItemType Directory -Path $Reg.Path1 -Name [System.Management.Automation.WildcardPattern]::Escape("*") 2>$null | Out-Null
         New-Item -ItemType Directory -Path $Reg.Path1 -Name $Reg.Key1 2>$null | Out-Null
     }
     If (!(Test-Path -LiteralPath $Reg.Path3)) {
@@ -109,10 +108,12 @@ Function Set-PinTaskbar {
             $EntryProcessedPhase2 = $null
             # Remove characters from the path until it is resolvable
             ForEach ($Position in $EntryProcessedPhase1.Length .. 1) {
+                $ErrorActionPreference = "SilentlyContinue"
                 If (Test-Path $EntryProcessedPhase1.Substring(0,$Position)) {
                     $EntryProcessedPhase2 = $EntryProcessedPhase1.Substring(0,$Position)
                     Break
                 }
+                $ErrorActionPreference = "Continue"
             }
             # If the path resolves, add it to the array of paths
             If ($EntryProcessedPhase2) {
@@ -133,6 +134,8 @@ Function Set-PinTaskbar {
             $PinnedItems += $Path
         }
     }
+
+    $PinnedItems = $PinnedItems | Sort-Object -Unique
     
     # Unpin if the application is pinned
     If (!($PinFlag)) {
