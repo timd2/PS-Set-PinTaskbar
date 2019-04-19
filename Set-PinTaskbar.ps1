@@ -163,7 +163,7 @@ Function Set-PinTaskbar {
     }
     
     # Remove the registry key and subkeys required to pin the application
-    If (Test-Path $Reg.Path3) {
+    If (Test-Path -LiteralPath $Reg.Path3) {
         Remove-Item -LiteralPath $Reg.Path3 -Recurse 2>&1 | Out-Null
     }
 
